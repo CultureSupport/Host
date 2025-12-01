@@ -1,344 +1,472 @@
-import React, { useState, useCallback } from 'react';
-import {
-  Palette, Smartphone, LayoutGrid, Zap, Code, Terminal, Send, Atom, Settings, PaintBucket, Type,
-  MoveHorizontal, Square, Component, Edit3, Save, Share2, Box, Cpu
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App Builder Interface</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Lucide Icons (similar to what was used in React) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom styles to enhance mobile view and fix heights */
+        html, body, #app-root {
+            height: 100%;
+            margin: 0;
+            overflow: hidden; /* Prevent body scrolling */
+        }
+        .main-grid {
+            height: calc(100vh - 68px - 10rem); /* Total height minus header and footer */
+            overflow: hidden;
+        }
+        .android-mockup-frame {
+            height: 800px; /* Fixed height for the device mockup */
+        }
+        /* Mobile adjustment: stack panels */
+        @media (max-width: 1024px) {
+            .main-grid {
+                flex-direction: column;
+                height: auto;
+                overflow-y: auto;
+            }
+            .panel-sidebar {
+                width: 100% !important;
+                flex-shrink: 0;
+                border-right: none;
+                border-bottom: 1px solid #d1d5db;
+            }
+            .android-mockup-frame {
+                 /* Make mockup full width on mobile for visibility */
+                width: 90%;
+                height: 500px; 
+                max-height: 500px;
+            }
+        }
+    </style>
+</head>
+<body class="font-sans antialiased text-gray-800" id="main-app-container">
 
-// --- Utility Components ---
+    <div class="h-full flex flex-col">
+        <!-- Top Header/Toolbar (Bulma Navbar/Hero style) -->
+        <header class="flex justify-between items-center p-4 border-b-4 border-blue-600 bg-white shadow-lg flex-shrink-0 h-16">
+            <div class="flex items-center space-x-3">
+                <i data-lucide="smartphone" class="w-6 h-6 text-blue-600"></i>
+                <h1 class="text-xl lg:text-2xl font-extrabold text-gray-900">App Builder Studio</h1>
+                <span class="hidden sm:inline-block text-sm font-medium px-3 py-1 bg-gray-200 rounded-full text-gray-700 border border-gray-300">App.jsx</span>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button class="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-md font-bold text-sm hover:bg-blue-700 transition shadow-lg">
+                    Deploy App
+                </button>
+                <button class="p-2 bg-gray-200 text-gray-600 rounded-md hover:bg-gray-300 transition border border-gray-300">
+                    <i data-lucide="share-2" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
 
-// Data for component palette
-const components = [
-  { name: 'Text Block', icon: Type, type: 'TextBlock' },
-  { name: 'Button (Primary)', icon: Send, type: 'Button' },
-  { name: 'Image/Media', icon: Box, type: 'Image' },
-  { name: 'Input Field', icon: Edit3, type: 'Input' },
-  { name: 'List/Feed', icon: LayoutGrid, type: 'List' },
-  { name: 'Icon/Logo', icon: Atom, type: 'Icon' },
-];
+        <!-- Main Builder Grid -->
+        <div class="flex flex-grow lg:main-grid">
+            
+            <!-- Left Sidebar: Components & AI -->
+            <div class="panel-sidebar w-full lg:w-72 bg-gray-50 flex-shrink-0 border-r border-gray-300 overflow-y-auto">
+                <div class="p-4 space-y-6">
+                    <h2 class="text-xl font-bold text-gray-800 border-b pb-2 mb-4">🛠️ Component Library</h2>
+                    
+                    <!-- Components Grid -->
+                    <div id="component-palette" class="grid grid-cols-2 gap-3">
+                        <!-- Components will be injected here by JS -->
+                    </div>
 
-// Data for icon library (Mocking the icon builder)
-const iconPresets = [
-    { name: 'User Profile', icon: '👤' },
-    { name: 'Shopping Cart', icon: '🛒' },
-    { name: 'Settings', icon: '⚙️' },
-    { name: 'Home', icon: '🏠' },
-];
+                    <!-- AI App Generation Mockup -->
+                    <div class="mt-6 p-4 bg-white border border-gray-300 rounded-lg shadow-lg space-y-3">
+                        <h3 class="font-semibold text-lg text-blue-700 flex items-center gap-2"><i data-lucide="cpu" class="w-5 h-5"></i> AI App Generator</h3>
+                        <p class="text-sm text-gray-600">Generate a full app structure from a prompt.</p>
+                        <textarea
+                            class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                            rows="3"
+                            placeholder="e.g., 'A 3-screen recipe app with user login and a search function.'"
+                        ></textarea>
+                        <button class="w-full py-2 bg-blue-600 text-white rounded-md font-bold text-sm hover:bg-blue-700 transition shadow-md">
+                            Generate AI App
+                        </button>
+                    </div>
 
-/**
- * Left Sidebar: Component Palette and AI/Automation Tools
- */
-const ComponentPalette = ({ setSelectedElement }) => (
-  <div className="p-4 space-y-6 overflow-y-auto h-full bg-gray-50">
-    <h2 className="text-xl font-bold text-gray-800 border-b pb-2 mb-4">🛠️ Component Library</h2>
-    
-    {/* Components Grid (Bulma Box style) */}
-    <div className="grid grid-cols-2 gap-3">
-      {components.map((comp) => (
-        <div 
-          key={comp.name} 
-          className="p-3 bg-white border border-gray-300 rounded-lg shadow-sm hover:shadow-md transition duration-150 cursor-pointer flex flex-col items-center text-center hover:border-blue-500"
-          onClick={() => setSelectedElement({ id: comp.type, name: comp.name })}
-        >
-          <comp.icon className="w-6 h-6 text-blue-600 mb-1" />
-          <span className="text-xs font-medium text-gray-700">{comp.name}</span>
-        </div>
-      ))}
-    </div>
-
-    {/* AI App Generation Mockup (Bulma Card style) */}
-    <div className="mt-6 p-4 bg-white border border-gray-300 rounded-lg shadow-lg space-y-3">
-        <h3 className="font-semibold text-xl text-blue-700 flex items-center gap-2"><Cpu className="w-6 h-6"/> AI App Generator</h3>
-        <p className="text-sm text-gray-600">Generate a full app structure from a prompt.</p>
-        <textarea
-            className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            rows="3"
-            placeholder="e.g., 'A 3-screen recipe app with user login and a search function.'"
-        ></textarea>
-        <button className="w-full py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition shadow-md">
-            Generate AI App
-        </button>
-    </div>
-
-    {/* Icon Builder Mockup */}
-    <div className="space-y-3 pt-4 border-t mt-4">
-        <h3 className="text-lg font-semibold text-gray-800">🎨 Icon Builder</h3>
-        <div className="grid grid-cols-4 gap-2">
-            {iconPresets.map(preset => (
-                <div key={preset.name} className="flex items-center justify-center p-2 bg-gray-200 rounded-lg hover:bg-blue-100 border border-gray-300 cursor-pointer" title={preset.name}>
-                    <span className="text-xl">{preset.icon}</span>
+                    <!-- Icon Builder Mockup -->
+                    <div class="space-y-3 pt-4 border-t mt-4">
+                        <h3 class="text-lg font-semibold text-gray-800">🎨 Icon Builder</h3>
+                        <div class="grid grid-cols-4 gap-2">
+                            <div class="flex items-center justify-center p-2 bg-gray-200 rounded-lg hover:bg-blue-100 border border-gray-300 cursor-pointer" title="User Profile">
+                                <span class="text-xl">👤</span>
+                            </div>
+                            <div class="flex items-center justify-center p-2 bg-gray-200 rounded-lg hover:bg-blue-100 border border-gray-300 cursor-pointer" title="Shopping Cart">
+                                <span class="text-xl">🛒</span>
+                            </div>
+                            <div class="flex items-center justify-center p-2 bg-gray-200 rounded-lg hover:bg-blue-100 border border-gray-300 cursor-pointer" title="Settings">
+                                <span class="text-xl">⚙️</span>
+                            </div>
+                            <div class="flex items-center justify-center p-2 bg-gray-200 rounded-lg hover:bg-blue-100 border border-gray-300 cursor-pointer" title="Home">
+                                <span class="text-xl">🏠</span>
+                            </div>
+                        </div>
+                        <button class="w-full text-sm py-1 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition font-medium">
+                            Customize Icon
+                        </button>
+                    </div>
                 </div>
-            ))}
+            </div>
+
+            <!-- Center: Live Mockup Canvas -->
+            <main class="flex-grow overflow-auto p-4 lg:p-8 flex items-center justify-center bg-gray-200">
+                <div class="android-mockup-frame w-full max-w-sm shadow-2xl bg-gray-900 rounded-[2.5rem] p-3 relative flex flex-col">
+                    <!-- Android Frame Bezel -->
+                    <div class="absolute top-0 left-1/2 transform -translate-x-1/2 w-20 h-2 bg-gray-700 rounded-b-lg"></div>
+                    <div class="absolute top-5 left-5 w-1 h-1 rounded-full bg-gray-600"></div>
+
+                    <!-- Screen Area (The App) -->
+                    <div class="bg-white rounded-[2rem] flex flex-col flex-grow overflow-hidden border-8 border-gray-100">
+                        
+                        <!-- Header Designer -->
+                        <div 
+                            id="header-preview"
+                            class="p-4 bg-blue-600 text-white flex justify-between items-center h-16 transition-all duration-300"
+                        >
+                            <span class="font-semibold text-lg">My Bulma-App</span>
+                            <i data-lucide="settings" class="w-5 h-5 cursor-pointer"></i>
+                        </div>
+
+                        <!-- Body Designer -->
+                        <div 
+                            id="body-preview"
+                            class="flex-grow p-4 space-y-4 overflow-y-auto transition-all duration-300"
+                            style="min-height: 100px;"
+                        >
+                            <p class="text-gray-700 text-sm">Design in progress...</p>
+                            
+                            <!-- Mock Component 1: Button -->
+                            <div id="button-preview" class="p-3 bg-blue-100 rounded-lg border border-blue-200 transition-all duration-300">
+                                <button class="w-full py-2 bg-blue-600 text-white rounded-md font-bold shadow-lg hover:bg-blue-700 transition">
+                                    Primary Action
+                                </button>
+                            </div>
+
+                            <!-- Mock Component 2: Text Block -->
+                            <div id="textblock-preview" class="p-4 bg-white border border-gray-300 rounded-md shadow-sm transition-all duration-300">
+                                <h4 class="font-bold text-gray-800">Section Title</h4>
+                                <p class="text-sm text-gray-500 mt-1">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+                            </div>
+                            
+                            <!-- Mock Component 3: List -->
+                            <ul id="list-preview" class="divide-y divide-gray-200 border border-gray-300 rounded-md transition-all duration-300">
+                                <li class="p-3 flex justify-between items-center text-sm hover:bg-gray-50">Item One <i data-lucide="zap" class="w-4 h-4 text-orange-500"></i></li>
+                                <li class="p-3 flex justify-between items-center text-sm hover:bg-gray-50">Item Two <i data-lucide="code" class="w-4 h-4 text-gray-600"></i></li>
+                            </ul>
+                            
+                            <!-- Mock Component 4: Input -->
+                            <div id="input-preview" class="p-3 bg-gray-100 rounded-md border border-gray-300 transition-all duration-300">
+                                <input type="text" placeholder="Enter data..." class="w-full p-2 text-sm border border-gray-300 rounded-md focus:border-blue-500"/>
+                            </div>
+
+                        </div>
+
+                        <!-- Footer Designer -->
+                        <div 
+                            id="footer-preview"
+                            class="p-2 bg-white border-t border-gray-300 flex justify-around items-center h-14 transition-all duration-300"
+                        >
+                            <div class="flex flex-col items-center text-xs text-blue-600 font-bold">
+                                <i data-lucide="layout-grid" class="w-5 h-5"></i>
+                                Home
+                            </div>
+                            <div class="flex flex-col items-center text-xs text-gray-500">
+                                <i data-lucide="share-2" class="w-5 h-5"></i>
+                                Share
+                            </div>
+                            <div class="flex flex-col items-center text-xs text-gray-500">
+                                <i data-lucide="save" class="w-5 h-5"></i>
+                                Save
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Right Sidebar: Design & Properties -->
+            <div class="panel-sidebar w-full lg:w-80 bg-white flex-shrink-0 overflow-y-auto border-l border-gray-300">
+                <div class="p-4 space-y-6">
+                    <h2 id="design-panel-title" class="text-xl font-bold text-gray-800 border-b pb-2 mb-4">
+                        ⚙️ Properties: Screen
+                    </h2>
+
+                    <!-- Color and Design Panel -->
+                    <div class="space-y-3 p-4 bg-gray-50 border border-gray-300 rounded-lg shadow-inner">
+                        <h3 class="font-bold text-blue-700 flex items-center gap-2 text-lg"><i data-lucide="paint-bucket" class="w-5 h-5"></i> App Theme & Color</h3>
+                        
+                        <div class="flex items-center justify-between text-sm pt-2">
+                            <span class="font-medium text-gray-600">Color Theme:</span>
+                            <div class="flex space-x-2">
+                                <button 
+                                    id="theme-light-btn"
+                                    class="px-3 py-1 rounded-full text-xs font-medium border bg-blue-600 text-white border-blue-600"
+                                >
+                                    Light
+                                </button>
+                                <button 
+                                    id="theme-dark-btn"
+                                    class="px-3 py-1 rounded-full text-xs font-medium border bg-white text-gray-700 border-gray-300"
+                                >
+                                    Dark
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="font-medium text-gray-600">Primary Color:</span>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-6 h-6 rounded-md bg-blue-600 border-4 border-blue-300 cursor-pointer shadow-md"></div>
+                                <div class="w-6 h-6 rounded-md bg-red-600 border-2 border-gray-300 cursor-pointer"></div>
+                                <div class="w-6 h-6 rounded-md bg-green-600 border-2 border-gray-300 cursor-pointer"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Button Designer - Conditional Mockup -->
+                    <div id="designer-button-config" class="space-y-4 p-4 bg-white border border-gray-300 rounded-lg shadow-md hidden">
+                        <h3 class="font-bold text-blue-700 flex items-center gap-2 text-lg"><i data-lucide="square" class="w-5 h-5"></i> Button Designer</h3>
+                        
+                        <div class="text-sm space-y-2">
+                            <label class="block text-gray-600 font-medium">Shape</label>
+                            <div class="flex gap-2">
+                                <button class="px-3 py-1 border border-gray-300 rounded-md text-xs hover:bg-gray-100">Square</button>
+                                <button class="px-3 py-1 bg-blue-100 text-blue-700 border border-blue-500 rounded-md text-xs font-bold">Rounded</button>
+                                <button class="px-3 py-1 border border-gray-300 rounded-full text-xs hover:bg-gray-100">Pill</button>
+                            </div>
+                        </div>
+
+                        <div class="text-sm space-y-2">
+                            <label class="block text-gray-600 font-medium">Shadow</label>
+                            <div class="flex gap-2">
+                                <button class="px-3 py-1 border border-gray-300 rounded-md text-xs shadow-md hover:bg-gray-100">Lifted</button>
+                                <button class="px-3 py-1 bg-blue-100 text-blue-700 border border-blue-500 rounded-md text-xs shadow-none font-bold">Flat</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Layout & Spacing -->
+                    <div class="space-y-3 p-4 bg-white border border-gray-300 rounded-lg shadow-md">
+                        <h3 class="font-bold text-gray-800 flex items-center gap-2 text-lg"><i data-lucide="move-horizontal" class="w-5 h-5"></i> Layout (Flexbox)</h3>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <label class="block text-gray-600 mb-1">Padding (Vertical)</label>
+                                <input type="number" defaultValue="16" class="w-full p-1 border border-gray-300 rounded-md text-xs"/>
+                            </div>
+                            <div>
+                                <label class="block text-gray-600 mb-1">Margin (Horizontal)</label>
+                                <input type="number" defaultValue="0" class="w-full p-1 border border-gray-300 rounded-md text-xs"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <button className="w-full text-sm py-1 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-medium">
-            Customize Icon
-        </button>
+
+        <!-- Bottom Panel: Logic Flow -->
+        <footer class="h-40 bg-white flex-shrink-0 border-t-2 border-gray-300 hidden lg:block">
+            <div class="p-4">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
+                    <i data-lucide="zap" class="w-5 h-5 text-orange-600"></i> Backend & Automation Flow
+                </h2>
+                
+                <div class="flex space-x-6 items-center h-20">
+                    
+                    <!-- Node 1: App Interaction Trigger -->
+                    <div class="flex flex-col items-center flex-shrink-0">
+                        <div class="p-3 bg-blue-600 text-white rounded-full shadow-lg border-2 border-blue-300">
+                            <i data-lucide="component" class="w-6 h-6"></i>
+                        </div>
+                        <span class="text-xs mt-1 font-medium text-gray-700">App.jsx Click</span>
+                    </div>
+
+                    <div class="text-xl text-gray-400 font-bold flex-shrink-0">&rarr;</div>
+
+                    <!-- Node 2: Database Connection (PHP/MySQL Mock) -->
+                    <div class="flex flex-col items-center flex-shrink-0">
+                        <div class="p-3 bg-red-600 text-white rounded-full shadow-lg border-2 border-red-300">
+                            <i data-lucide="code" class="w-6 h-6"></i>
+                        </div>
+                        <span class="text-xs mt-1 font-medium text-gray-700">Connect PHP Database</span>
+                        <span class="text-xs text-gray-500">(SQL Query Node)</span>
+                    </div>
+
+                    <div class="text-xl text-gray-400 font-bold flex-shrink-0">&rarr;</div>
+
+                    <!-- Node 3: Automated n8n Instance -->
+                    <div class="flex flex-col items-center flex-shrink-0">
+                        <div class="p-3 bg-yellow-500 text-gray-800 rounded-full shadow-lg border-2 border-yellow-300 animate-pulse">
+                            <i data-lucide="terminal" class="w-6 h-6"></i>
+                        </div>
+                        <span class="text-xs mt-1 font-medium text-gray-700">n8n Workflow</span>
+                        <span class="text-xs text-blue-500 underline cursor-pointer">View Instance</span>
+                    </div>
+                    
+                </div>
+            </div>
+        </footer>
     </div>
-  </div>
-);
 
-/**
- * Center Panel: Android Mockup (Live Preview)
- */
-const AndroidMockup = ({ selectedElement }) => {
-  // Use a strong, clear border for Bulma-style selection highlighting
-  const highlightClass = (id) => selectedElement && selectedElement.id === id ? 'ring-4 ring-orange-500 ring-offset-2 transition-all duration-300 shadow-xl' : 'transition-all duration-300';
-  
-  return (
-    <div className="flex items-center justify-center h-full p-8 bg-gray-200">
-      <div className="w-full max-w-sm h-full max-h-[800px] shadow-2xl bg-gray-900 rounded-[2.5rem] p-3 relative flex flex-col">
-        {/* Android Frame Bezel */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-20 h-2 bg-gray-700 rounded-b-lg"></div>
-        <div className="absolute top-5 left-5 w-1 h-1 rounded-full bg-gray-600"></div>
 
-        {/* Screen Area (The App) */}
-        <div className="bg-white rounded-[2rem] flex flex-col flex-grow overflow-hidden border-8 border-gray-100">
-          
-          {/* Header Designer (Bulma-style primary background) */}
-          <div 
-            className={`p-4 bg-blue-600 text-white flex justify-between items-center h-16 ${highlightClass('Header')}`}
-          >
-            <span className="font-semibold text-lg">My Bulma-App</span>
-            <Settings className="w-5 h-5 cursor-pointer hover:text-blue-200"/>
-          </div>
+    <script>
+        // --- Application State ---
+        const appState = {
+            selectedElementId: 'Screen', // Default: Screen
+            theme: 'light',
+            components: [
+                { name: 'Header', id: 'Header', icon: 'settings' },
+                { name: 'Body', id: 'Body', icon: 'layout-grid' },
+                { name: 'Footer', id: 'Footer', icon: 'list' },
+                { name: 'Text Block', id: 'TextBlock', icon: 'type' },
+                { name: 'Button (Primary)', id: 'Button', icon: 'send' },
+                { name: 'Image/Media', id: 'Image', icon: 'box' },
+                { name: 'Input Field', id: 'Input', icon: 'edit-3' },
+                { name: 'List/Feed', id: 'List', icon: 'layout-grid' },
+            ],
+        };
 
-          {/* Body Designer */}
-          <div 
-            className={`flex-grow p-4 space-y-4 overflow-y-auto ${highlightClass('Body')}`}
-            style={{ minHeight: '100px' }}
-          >
-            <p className="text-gray-700 text-sm">Design in progress...</p>
+        // --- DOM Elements ---
+        const elementMap = {
+            'Screen': document.getElementById('main-app-container'), // Not used for highlight, but good to have
+            'Header': document.getElementById('header-preview'),
+            'Body': document.getElementById('body-preview'),
+            'Footer': document.getElementById('footer-preview'),
+            'Button': document.getElementById('button-preview'),
+            'TextBlock': document.getElementById('textblock-preview'),
+            'List': document.getElementById('list-preview'),
+            'Input': document.getElementById('input-preview'),
+        };
+
+        const designPanelTitle = document.getElementById('design-panel-title');
+        const designerButtonConfig = document.getElementById('designer-button-config');
+        const themeLightBtn = document.getElementById('theme-light-btn');
+        const themeDarkBtn = document.getElementById('theme-dark-btn');
+
+        // --- Core Functions ---
+
+        /**
+         * Renders the Component Palette on the left sidebar.
+         */
+        function renderComponentPalette() {
+            const palette = document.getElementById('component-palette');
+            if (!palette) return;
+
+            palette.innerHTML = appState.components.map(comp => `
+                <div 
+                    id="comp-${comp.id}"
+                    data-element-id="${comp.id}"
+                    class="component-item p-3 bg-white border border-gray-300 rounded-lg shadow-sm hover:shadow-md transition duration-150 cursor-pointer flex flex-col items-center text-center hover:border-blue-500"
+                >
+                    <i data-lucide="${comp.icon}" class="w-6 h-6 text-blue-600 mb-1"></i>
+                    <span class="text-xs font-medium text-gray-700">${comp.name}</span>
+                </div>
+            `).join('');
+
+            // Important: Re-initialize Lucide icons after injecting HTML
+            lucide.createIcons();
+            addPaletteEventListeners();
+        }
+
+        /**
+         * Updates the visual state (highlights and property panel) based on selectedElementId.
+         */
+        function updateUI() {
+            const selectedId = appState.selectedElementId;
+            const selectedComponent = appState.components.find(c => c.id === selectedId) || { name: 'Screen' };
+
+            // 1. Update Design Panel Title and Conditional Config
+            designPanelTitle.textContent = `⚙️ Properties: ${selectedComponent.name}`;
             
-            {/* Mock Component 1: Selected Element (Bulma button) */}
-            <div className={`p-3 bg-blue-100 rounded-lg border border-blue-200 ${highlightClass('Button')}`}>
-              <button className="w-full py-2 bg-blue-600 text-white rounded-md font-bold shadow-lg hover:bg-blue-700 transition">
-                {selectedElement?.name || "Primary Action"}
-              </button>
-            </div>
+            const isButton = selectedId === 'Button' || selectedId === 'Footer';
+            designerButtonConfig.classList.toggle('hidden', !isButton);
 
-            {/* Mock Component 2: Text Block (Bulma content block) */}
-            <div className={`p-4 bg-white border border-gray-300 rounded-md shadow-sm ${highlightClass('TextBlock')}`}>
-              <h4 className="font-bold text-gray-800">Section Title</h4>
-              <p className="text-sm text-gray-500 mt-1">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
-            </div>
-            
-            {/* Mock Component 3: List */}
-            <ul className={`divide-y divide-gray-200 border border-gray-300 rounded-md ${highlightClass('List')}`}>
-                <li className="p-3 flex justify-between items-center text-sm hover:bg-gray-50">Item One <Zap className="w-4 h-4 text-orange-500"/></li>
-                <li className="p-3 flex justify-between items-center text-sm hover:bg-gray-50">Item Two <Code className="w-4 h-4 text-gray-600"/></li>
-            </ul>
-            
-            <div className={`p-3 bg-gray-100 rounded-md border border-gray-300 ${highlightClass('Input')}`}>
-              <input type="text" placeholder="Enter data..." className="w-full p-2 text-sm border border-gray-300 rounded-md focus:border-blue-500"/>
-            </div>
+            // 2. Update Mockup Highlights
+            Object.keys(elementMap).forEach(key => {
+                const element = elementMap[key];
+                if (!element) return;
+                
+                // Base classes for transition
+                const baseClasses = 'transition-all duration-300';
+                
+                // Highlight classes
+                const highlightClasses = 'ring-4 ring-orange-500 ring-offset-2 shadow-xl';
+                
+                // Remove existing highlight classes
+                element.className = element.className.replace(new RegExp(highlightClasses.split(' ').join('|'), 'g'), '').trim() + ' ' + baseClasses;
+                
+                // Apply highlight if selected
+                if (key === selectedId) {
+                    element.classList.add(...highlightClasses.split(' '));
+                }
+            });
 
-          </div>
+            // 3. Update Theme Buttons (Light/Dark)
+            const lightClasses = 'bg-blue-600 text-white border-blue-600';
+            const darkClasses = 'bg-blue-600 text-white border-blue-600';
+            const defaultClasses = 'bg-white text-gray-700 border-gray-300';
 
-          {/* Footer Designer (Bulma nav-bar style) */}
-          <div 
-            className={`p-2 bg-white border-t border-gray-300 flex justify-around items-center h-14 ${highlightClass('Footer')}`}
-          >
-            <div className="flex flex-col items-center text-xs text-blue-600 font-bold">
-                <LayoutGrid className="w-5 h-5"/>
-                Home
-            </div>
-            <div className="flex flex-col items-center text-xs text-gray-500">
-                <Share2 className="w-5 h-5"/>
-                Share
-            </div>
-            <div className="flex flex-col items-center text-xs text-gray-500">
-                <Save className="w-5 h-5"/>
-                Save
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+            themeLightBtn.className = themeLightBtn.className.replace(new RegExp(`${lightClasses}|${defaultClasses}`, 'g'), '').trim();
+            themeDarkBtn.className = themeDarkBtn.className.replace(new RegExp(`${darkClasses}|${defaultClasses}`, 'g'), '').trim();
 
-/**
- * Right Sidebar: Design Properties and Element Inspector
- */
-const DesignPanel = ({ selectedElement, theme, setTheme }) => (
-  <div className="p-4 space-y-6 overflow-y-auto h-full bg-white border-l border-gray-300">
-    <h2 className="text-xl font-bold text-gray-800 border-b pb-2 mb-4">
-      ⚙️ Properties: {selectedElement ? selectedElement.name : 'Screen'}
-    </h2>
+            if (appState.theme === 'light') {
+                themeLightBtn.classList.add(...lightClasses.split(' '));
+                themeDarkBtn.classList.add(...defaultClasses.split(' '));
+            } else {
+                themeLightBtn.classList.add(...defaultClasses.split(' '));
+                themeDarkBtn.classList.add(...darkClasses.split(' '));
+            }
+        }
 
-    {/* Color and Design Panel (Bulma Box) */}
-    <div className="space-y-3 p-4 bg-gray-50 border border-gray-300 rounded-lg shadow-inner">
-      <h3 className="font-bold text-blue-700 flex items-center gap-2 text-lg"><PaintBucket className="w-5 h-5"/> App Theme & Color</h3>
-      
-      {/* Theme Toggle */}
-      <div className="flex items-center justify-between text-sm pt-2">
-        <span className="font-medium text-gray-600">Color Theme:</span>
-        <div className="flex space-x-2">
-            <button 
-                className={`px-3 py-1 rounded-full text-xs font-medium border ${theme === 'light' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'}`}
-                onClick={() => setTheme('light')}
-            >
-                Light
-            </button>
-            <button 
-                className={`px-3 py-1 rounded-full text-xs font-medium border ${theme === 'dark' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'}`}
-                onClick={() => setTheme('dark')}
-            >
-                Dark
-            </button>
-        </div>
-      </div>
+        // --- Event Listeners ---
 
-      {/* Primary Color Picker Mockup */}
-      <div className="flex items-center justify-between text-sm">
-        <span className="font-medium text-gray-600">Primary Color:</span>
-        <div className="flex items-center space-x-2">
-            <div className="w-6 h-6 rounded-md bg-blue-600 border-4 border-blue-300 cursor-pointer shadow-md"></div>
-            <div className="w-6 h-6 rounded-md bg-red-600 border-2 border-gray-300 cursor-pointer"></div>
-            <div className="w-6 h-6 rounded-md bg-green-600 border-2 border-gray-300 cursor-pointer"></div>
-        </div>
-      </div>
-    </div>
+        function handlePaletteClick(event) {
+            let target = event.target;
+            // Traverse up to find the closest element with the component-item class or data-element-id
+            while (target && !target.dataset.elementId) {
+                target = target.parentElement;
+            }
 
-    {/* Button Designer - Conditional Mockup (Bulma-style fields) */}
-    {(selectedElement?.id === 'Button' || selectedElement?.id === 'Footer') && (
-      <div className="space-y-4 p-4 bg-white border border-gray-300 rounded-lg shadow-md">
-        <h3 className="font-bold text-blue-700 flex items-center gap-2 text-lg"><Square className="w-5 h-5"/> Button Designer</h3>
-        
-        <div className="text-sm space-y-2">
-          <label className="block text-gray-600 font-medium">Shape</label>
-          <div className="flex gap-2">
-              <button className="px-3 py-1 border border-gray-300 rounded-md text-xs hover:bg-gray-100">Square</button>
-              <button className="px-3 py-1 bg-blue-100 text-blue-700 border border-blue-500 rounded-md text-xs font-bold">Rounded</button>
-              <button className="px-3 py-1 border border-gray-300 rounded-full text-xs hover:bg-gray-100">Pill</button>
-          </div>
-        </div>
+            if (target && target.dataset.elementId) {
+                appState.selectedElementId = target.dataset.elementId;
+                updateUI();
+            }
+        }
 
-        <div className="text-sm space-y-2">
-          <label className="block text-gray-600 font-medium">Shadow</label>
-          <div className="flex gap-2">
-              <button className="px-3 py-1 border border-gray-300 rounded-md text-xs shadow-md hover:bg-gray-100">Lifted</button>
-              <button className="px-3 py-1 bg-blue-100 text-blue-700 border border-blue-500 rounded-md text-xs shadow-none font-bold">Flat</button>
-          </div>
-        </div>
-      </div>
-    )}
+        function handleThemeChange(newTheme) {
+            appState.theme = newTheme;
+            updateUI();
+            // In a real app, this would change background/text colors globally.
+            // For this mockup, we only update the button styling.
+        }
 
-    {/* Layout & Spacing */}
-    <div className="space-y-3 p-4 bg-white border border-gray-300 rounded-lg shadow-md">
-      <h3 className="font-bold text-gray-800 flex items-center gap-2 text-lg"><MoveHorizontal className="w-5 h-5"/> Layout (Flexbox)</h3>
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <label className="block text-gray-600 mb-1">Padding (Vertical)</label>
-          <input type="number" defaultValue="16" className="w-full p-1 border border-gray-300 rounded-md text-xs"/>
-        </div>
-        <div>
-          <label className="block text-gray-600 mb-1">Margin (Horizontal)</label>
-          <input type="number" defaultValue="0" className="w-full p-1 border border-gray-300 rounded-md text-xs"/>
-        </div>
-      </div>
-    </div>
+        function addPaletteEventListeners() {
+            const paletteItems = document.querySelectorAll('.component-item');
+            paletteItems.forEach(item => {
+                item.addEventListener('click', handlePaletteClick);
+            });
+        }
 
-  </div>
-);
+        // --- Initialization ---
 
-/**
- * Bottom Panel: Logic and Data Flow Editor
- */
-const LogicFlow = () => (
-  <div className="p-4 border-t border-gray-300 bg-white overflow-x-auto">
-    <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
-      <Zap className="w-5 h-5 text-orange-600"/> Backend & Automation Flow
-    </h2>
-    
-    <div className="flex space-x-6 items-center h-20">
-      
-      {/* Node 1: App Interaction Trigger */}
-      <div className="flex flex-col items-center flex-shrink-0">
-        <div className="p-3 bg-blue-600 text-white rounded-full shadow-lg border-2 border-blue-300">
-          <Component className="w-6 h-6" />
-        </div>
-        <span className="text-xs mt-1 font-medium text-gray-700">App.jsx Click</span>
-      </div>
+        window.onload = function() {
+            // 1. Initial Render of dynamic parts
+            renderComponentPalette();
 
-      <div className="text-xl text-gray-400 font-bold flex-shrink-0">&rarr;</div>
+            // 2. Set up event listeners for theme change
+            themeLightBtn.addEventListener('click', () => handleThemeChange('light'));
+            themeDarkBtn.addEventListener('click', () => handleThemeChange('dark'));
 
+            // 3. Initial UI update (must be last)
+            updateUI();
+        };
 
-      {/* Node 2: Database Connection (PHP/MySQL Mock) */}
-      <div className="flex flex-col items-center flex-shrink-0">
-        <div className="p-3 bg-red-600 text-white rounded-full shadow-lg border-2 border-red-300">
-          <Code className="w-6 h-6" />
-        </div>
-        <span className="text-xs mt-1 font-medium text-gray-700">Connect PHP Database</span>
-        <span className="text-xs text-gray-500">(SQL Query Node)</span>
-      </div>
-
-      <div className="text-xl text-gray-400 font-bold flex-shrink-0">&rarr;</div>
-
-      {/* Node 3: Automated n8n Instance (Bulma warning color) */}
-      <div className="flex flex-col items-center flex-shrink-0">
-        <div className="p-3 bg-yellow-500 text-gray-800 rounded-full shadow-lg border-2 border-yellow-300 animate-pulse">
-          <Terminal className="w-6 h-6" />
-        </div>
-        <span className="text-xs mt-1 font-medium text-gray-700">n8n Workflow</span>
-        <span className="text-xs text-blue-500 underline cursor-pointer">View Instance</span>
-      </div>
-      
-    </div>
-  </div>
-);
-
-
-// --- Main App Component ---
-
-const App = () => {
-  const [selectedElement, setSelectedElement] = useState(null);
-  const [theme, setTheme] = useState('light'); // Mock theme state
-
-  return (
-    <div className="min-h-screen bg-gray-100 font-sans antialiased text-gray-800 flex flex-col">
-      {/* Top Header/Toolbar (Bulma Navbar/Hero style) */}
-      <header className="flex justify-between items-center p-4 border-b-4 border-blue-600 bg-white shadow-lg">
-        <div className="flex items-center space-x-3">
-          <Smartphone className="w-6 h-6 text-blue-600"/>
-          <h1 className="text-2xl font-extrabold text-gray-900">App Builder Studio</h1>
-          <span className="text-sm font-medium px-3 py-1 bg-gray-200 rounded-full text-gray-700 border border-gray-300">App.jsx</span>
-        </div>
-        <div className="flex items-center space-x-3">
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-md font-bold hover:bg-blue-700 transition shadow-lg">
-            Deploy App
-          </button>
-          <button className="p-2 bg-gray-200 text-gray-600 rounded-md hover:bg-gray-300 transition border border-gray-300">
-            <Share2 className="w-5 h-5"/>
-          </button>
-        </div>
-      </header>
-
-      {/* Main Builder Grid */}
-      <div className="flex flex-grow overflow-hidden">
-        
-        {/* Left Sidebar: Components & AI */}
-        <div className="w-72 bg-gray-50 flex-shrink-0 border-r border-gray-300 overflow-y-auto">
-          <ComponentPalette setSelectedElement={setSelectedElement} />
-        </div>
-
-        {/* Center: Live Mockup Canvas */}
-        <main className="flex-grow overflow-auto">
-          <AndroidMockup selectedElement={selectedElement} />
-        </main>
-
-        {/* Right Sidebar: Design & Properties */}
-        <div className="w-80 bg-white flex-shrink-0 overflow-y-auto">
-          <DesignPanel selectedElement={selectedElement} theme={theme} setTheme={setTheme} />
-        </div>
-      </div>
-
-      {/* Bottom Panel: Logic Flow */}
-      <footer className="h-40 bg-white flex-shrink-0 border-t-2 border-gray-300">
-        <LogicFlow />
-      </footer>
-    </div>
-  );
-};
-
-export default App;
+    </script>
+</body>
+</html>
 
