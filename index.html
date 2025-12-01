@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Camera Filter Studio</title>
+    <!-- Load Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Inter font -->
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .filter-button {
+            @apply px-4 py-2 text-sm font-medium text-white rounded-lg transition duration-150 shadow-md hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50;
+        }
+        /* Custom styles for the visual feedback when camera is active */
+        #filter-canvas {
+            transform: scaleX(-1); /* Mirror the image for a 'selfie' effect */
+            background: #1f2937;
+            border: 4px solid #4f46e5;
+            height: 100%; 
+            width: 100%;
+        }
+        /* Hide the raw video element, we only use it as a source for the canvas */
+        #live-video {
+            display: none;
+        }
+        /* Container styling for the fixed 600px height on large screens */
+        .camera-window {
+            height: 300px; /* Default height for mobile/small screens */
+        }
+        @media (min-width: 768px) {
+             .camera-window {
+                height: 600px; /* Fixed height for desktop/large screens */
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div id="app-container" class="w-full max-w-4xl bg-white p-6 md:p-10 rounded-xl shadow-2xl">
+        <h1 class="text-3xl font-extrabold text-gray-800 text-center mb-6">Live Filter Studio <span class="text-indigo-600">40+</span></h1>
+        
+        <!-- Live Feed and Canvas Area -->
+        <div class="relative w-full rounded-xl overflow-hidden mb-6 camera-window">
+            <div id="message-box" class="absolute inset-0 flex items-center justify-center bg-gray-900/90 text-white text-center p-4 z-10 hidden">
+                <div class="text-lg font-semibold animate-pulse">
+                    Please click "Start Camera" and allow webcam access...
+                </div>
+            </div>
+            
+            <!-- Hidden video element to capture the stream -->
+            <video id="live-video" class="w-full h-full object-cover" autoplay playsinline></video>
+            
+            <!-- Visible canvas element to display the filtered stream -->
+            <canvas id="filter-canvas" class="w-full h-full object-cover"></canvas>
+        </div>
+
+        <!-- Filter Selection and Controls -->
+        <div class="flex flex-col gap-4 mb-8">
+            <!-- Row 1: Camera Controls -->
+            <div class="flex flex-wrap gap-4 justify-center md:justify-start">
+                <button id="start-camera-btn" class="w-full sm:w-auto filter-button bg-green-600 hover:bg-green-700">
+                    Start Camera
+                </button>
+                <button id="capture-btn" class="w-full sm:w-auto filter-button bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50" disabled>
+                    Capture Snapshot
+                </button>
+            </div>
+
+            <!-- Row 2: Filter Selector -->
+            <div class="w-full flex items-center justify-center md:justify-start gap-2 mt-2">
+                <label for="filter-select" class="text-gray-700 font-medium whitespace-nowrap">Select Filter:</label>
+                <select id="filter-select" class="p-2 border border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 w-full md:w-60 bg-white">
+                    <!-- Options will be populated by JavaScript -->
+                </select>
+            </div>
+        </div>
+
+        <!-- Filter Explanation Area -->
+        <p id="filter-description" class="text-center text-sm text-gray-500 italic min-h-[1.5rem]">Filter description will appear here.</p>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const videoElement = document.getElementById('live-video');
+        const canvasElement = document.getElementById('filter-canvas');
+        const ctx = canvasElement.getContext('2d', { willReadFrequently: true });
+        const filterSelect = document.getElementById('filter-select');
+        const startCameraBtn = document.getElementById('start-camera-btn');
+        const captureBtn = document.getElementById('capture-btn'); // New button
+        const messageBox = document.getElementById('message-box');
+        const filterDescription = document.getElementById('filter-description');
+
+        // Initial setup
+        let currentFilterKey = 'none';
+        let isCameraActive = false;
+
+        // --- Filter Definitions (Total 40+) ---
+        const FILTERS = {
+            // --- Requested Advanced Filters ---
+            'canvas-enhanced-cartoon': { type: 'canvas', func: applyEnhancedCartoon, desc: 'CARTOON FILTER: Enhanced posterization and banding for a flat, animated look.' },
+            'canvas-anaglyph-3d': { type: 'canvas', func: applyAnaglyph3D, desc: '3D FILTER: Simulates a red/cyan anaglyph effect for glasses-based 3D viewing.' },
+            'canvas-sharpen': { type: 'canvas', func: applySharpenKernel, desc: 'CONVOLUTION FILTER: Uses a simplified sharpening kernel to enhance edges.' },
+            
+            // --- Requested Themed Filters ---
+            'css-cyber-neon': { type: 'css', value: 'contrast(300%) hue-rotate(280deg) saturate(250%)', desc: 'CYBER CAMERA: High-contrast purple/cyan neon glow for a synthetic future look.' },
+            'css-cyber-detective': { type: 'css', value: 'sepia(10%) contrast(150%) brightness(80%) hue-rotate(200deg) saturate(180%)', desc: 'CYBER DETECTIVE: Moody, high-tech surveillance look with a blue tint and darkness.' },
+            'css-live-enhancement': { type: 'css', value: 'brightness(110%) contrast(115%) saturate(105%)', desc: 'LIVE CAMERA: Subtle boost to contrast and saturation for a punchier live image.' },
+            'css-80s-vhs': { type: 'css', value: 'brightness(120%) contrast(150%) saturate(180%) sepia(20%)', desc: '80 CAM: High-energy, saturated, vivid aesthetic typical of 80s media.' },
+            'canvas-90s-digital': { type: 'canvas', func: apply90sDigital, desc: '90 CAM: Slight color bleed and digital noise simulation with a soft green shift.' },
+            'canvas-70s-film': { type: 'canvas', func: apply70sFilm, desc: '70 CAM: Warm, low-saturation, low-contrast look resembling old film reels.' },
+            'canvas-simple-blur': { type: 'canvas', func: applySimpleBlur, desc: 'SPATIAL FILTER: Applies a simple Box Blur/Smooth filter by averaging neighboring pixels.' },
+            'css-space-suit': { type: 'css', value: 'brightness(50%) hue-rotate(220deg) contrast(150%) drop-shadow(0 0 100px rgba(0,0,0,0.8))', desc: 'SPACE SUIT: Heavy blue tint, dark environment with a subtle helmet vignette simulation.' },
+            'css-green-hacker': { type: 'css', value: 'grayscale(100%) invert(100%) hue-rotate(120deg) contrast(300%) brightness(150%)', desc: 'GREEN HACKER: The classic Matrix/Terminal look—black background, neon green foreground.' },
+            
+            // --- Original Base Filters (for completeness) ---
+            'none': { type: 'css', value: 'none', desc: 'No filter applied. Pure live video feed.' },
+            'grayscale-100': { type: 'css', value: 'grayscale(100%)', desc: 'Standard B&W conversion.' },
+            'sepia-100': { type: 'css', value: 'sepia(100%)', desc: 'Applies a warm, vintage sepia tone.' },
+            'invert-100': { type: 'css', value: 'invert(100%)', desc: 'Completely inverts all colors.' },
+            'contrast-2x': { type: 'css', value: 'contrast(200%)', desc: 'Doubles the color contrast for a dramatic look.' },
+            'brightness-150': { type: 'css', value: 'brightness(150%)', desc: 'Increases the overall brightness by 50%.' },
+            'blur-heavy': { type: 'css', value: 'blur(8px)', desc: 'Heavy gaussian blur effect.' },
+            'hue-rotate-90': { type: 'css', value: 'hue-rotate(90deg)', desc: 'Shifts all colors 90 degrees on the color wheel.' },
+            'saturate-50': { type: 'css', value: 'saturate(50%)', desc: 'Reduces color saturation for a muted effect.' },
+            'x-ray-look': { type: 'css', value: 'invert(100%) grayscale(50%) contrast(150%)', desc: 'A high-contrast inverted grayscale effect.' },
+            'dreamy-sepia': { type: 'css', value: 'sepia(80%) blur(1px) brightness(120%)', desc: 'Soft, bright, and slightly sepia-toned.' },
+            'fiery-red': { type: 'css', value: 'contrast(150%) hue-rotate(330deg) saturate(200%)', desc: 'A vibrant, red-shifted high-contrast look.' },
+            'aqua-shift': { type: 'css', value: 'hue-rotate(180deg) saturate(150%)', desc: 'Shifts colors towards cool blues and greens.' },
+            'retro-glow': { type: 'css', value: 'sepia(30%) contrast(120%) brightness(130%)', desc: 'A gentle, warm glow reminiscent of old photos.' },
+
+            // --- Other Canvas Filters ---
+            'canvas-grayscale': { type: 'canvas', func: applyGrayscale, desc: 'Custom grayscale applied via pixel data manipulation.' },
+            'canvas-invert': { type: 'canvas', func: applyInvert, desc: 'Custom color inversion applied via pixel data manipulation.' },
+            'canvas-red-tint': { type: 'canvas', func: applyRedTint, desc: 'Boosts the Red channel by 50%.' },
+            'canvas-blue-tint': { type: 'canvas', func: applyBlueTint, desc: 'Boosts the Blue channel by 50%.' },
+            'canvas-green-tint': { type: 'canvas', func: applyGreenTint, desc: 'Boosts the Green channel by 50%.' },
+            'canvas-posterize': { type: 'canvas', func: applyPosterize, desc: 'Reduces the color palette for a flat, graphic look.' },
+            'canvas-threshold': { type: 'canvas', func: applyThreshold, desc: 'Converts image to stark black and white based on luminosity.' },
+            'canvas-warm-balance': { type: 'canvas', func: applyColorBalanceWarm, desc: 'Increases Red and Green channels for a warm, sunny feel.' },
+            'canvas-cool-balance': { type: 'canvas', func: applyColorBalanceCool, desc: 'Increases Blue channel and decreases Red for a cool, moody feel.' },
+            'canvas-scanlines': { type: 'canvas', func: applyScanlines, desc: 'Simulates old CRT monitor scanlines.' },
+            'canvas-vignette': { type: 'canvas', func: applyVignette, desc: 'Darkens the edges of the image for focus.' },
+        };
+
+        // --- Custom Pixel Manipulation Functions (The Filter Library) ---
+
+        function getIndex(x, y, width) { return (y * width + x) * 4; }
+
+        function applyEnhancedCartoon(data) {
+            const levels = 4;
+            const size = 255 / (levels - 1); 
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = Math.floor(data[i] / size) * size;
+                data[i + 1] = Math.floor(data[i + 1] / size) * size;
+                data[i + 2] = Math.floor(data[i + 2] / size) * size;
+            }
+        }
+
+        function applyAnaglyph3D(data) {
+            const shift = 8;
+            const width = canvasElement.width;
+            const height = canvasElement.height;
+            const originalData = new Uint8ClampedArray(data);
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const i = getIndex(x, y, width);
+                    const redX = Math.max(0, x - shift);
+                    const redIndex = getIndex(redX, y, width);
+                    
+                    const redValue = originalData[redIndex];
+                    
+                    data[i] = redValue;
+                    data[i + 1] = originalData[i + 1];
+                    data[i + 2] = originalData[i + 2];
+                }
+            }
+        }
+
+        function applySharpenKernel(data) {
+            const width = canvasElement.width;
+            const height = canvasElement.height;
+            const originalData = new Uint8ClampedArray(data); 
+
+            const weights = [0, -1, 0, -1, 5, -1, 0, -1, 0];
+            const side = Math.round(Math.sqrt(weights.length));
+            const halfSide = Math.floor(side / 2);
+
+            for (let y = halfSide; y < height - halfSide; y++) {
+                if (y % 3 !== 0) continue; 
+                
+                for (let x = halfSide; x < width - halfSide; x++) {
+                    const i = getIndex(x, y, width);
+                    let r = 0, g = 0, b = 0;
+
+                    for (let ky = 0; ky < side; ky++) {
+                        for (let kx = 0; kx < side; kx++) {
+                            const weight = weights[ky * side + kx];
+                            const pixelX = x + kx - halfSide;
+                            const pixelY = y + ky - halfSide;
+                            const originalIndex = getIndex(pixelX, pixelY, width);
+                            
+                            r += originalData[originalIndex] * weight;
+                            g += originalData[originalIndex + 1] * weight;
+                            b += originalData[originalIndex + 2] * weight;
+                        }
+                    }
+
+                    data[i] = Math.min(255, Math.max(0, r));
+                    data[i + 1] = Math.min(255, Math.max(0, g));
+                    data[i + 2] = Math.min(255, Math.max(0, b));
+                }
+            }
+        }
+
+        function apply70sFilm(data) {
+            const contrastFactor = 0.8;
+            const averageLuminosity = 127;
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = averageLuminosity + (data[i] - averageLuminosity) * contrastFactor;
+                data[i + 1] = averageLuminosity + (data[i + 1] - averageLuminosity) * contrastFactor;
+                data[i + 2] = averageLuminosity + (data[i + 2] - averageLuminosity) * contrastFactor;
+                
+                data[i] = Math.min(255, data[i] * 1.1);
+                data[i + 2] = Math.max(0, data[i + 2] * 0.9);
+            }
+        }
+
+        function apply90sDigital(data) {
+            for (let i = 0; i < data.length; i += 4) {
+                data[i + 1] = Math.min(255, data[i + 1] * 1.05);
+                
+                const noise = (Math.random() - 0.5) * 40;
+                data[i] = Math.min(255, Math.max(0, data[i] + noise));
+                data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + noise));
+                data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + noise));
+            }
+        }
+
+        function applySimpleBlur(data) {
+            const width = canvasElement.width;
+            const height = canvasElement.height;
+            const originalData = new Uint8ClampedArray(data); 
+
+            for (let y = 1; y < height - 1; y++) {
+                if (y % 3 !== 0) continue;
+                
+                for (let x = 1; x < width - 1; x++) {
+                    const i = getIndex(x, y, width);
+                    let r = 0, g = 0, b = 0;
+                    
+                    for (let ky = -1; ky <= 1; ky++) {
+                        for (let kx = -1; kx <= 1; kx++) {
+                            const originalIndex = getIndex(x + kx, y + ky, width);
+                            r += originalData[originalIndex];
+                            g += originalData[originalIndex + 1];
+                            b += originalData[originalIndex + 2];
+                        }
+                    }
+
+                    data[i] = r / 9;
+                    data[i + 1] = g / 9;
+                    data[i + 2] = b / 9;
+                }
+            }
+        }
+
+        function applyScanlines(data) {
+            for (let i = 0; i < data.length; i += 4) {
+                const y = Math.floor(i / 4 / canvasElement.width);
+                if (y % 2 === 0) {
+                    data[i] = data[i] * 0.8;
+                    data[i + 1] = data[i + 1] * 0.8;
+                    data[i + 2] = data[i + 2] * 0.8;
+                }
+            }
+        }
+        
+        function applyVignette(data) {
+            const width = canvasElement.width;
+            const height = canvasElement.height;
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const maxDistance = Math.sqrt(centerX * centerX + centerY * centerY);
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const i = getIndex(x, y, width);
+                    const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+                    const factor = 1 - (dist / maxDistance) * 0.7;
+
+                    data[i] = data[i] * factor;
+                    data[i + 1] = data[i + 1] * factor;
+                    data[i + 2] = data[i + 2] * factor;
+                }
+            }
+        }
+        
+        function applyGrayscale(data) {
+            for (let i = 0; i < data.length; i += 4) {
+                const avg = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+                data[i] = data[i + 1] = data[i + 2] = avg;
+            }
+        }
+
+        function applyInvert(data) {
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = 255 - data[i];     
+                data[i + 1] = 255 - data[i + 1]; 
+                data[i + 2] = 255 - data[i + 2]; 
+            }
+        }
+
+        function applyRedTint(data) {
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = Math.min(255, data[i] * 1.5); 
+            }
+        }
+
+        function applyBlueTint(data) {
+            for (let i = 0; i < data.length; i += 4) {
+                data[i + 2] = Math.min(255, data[i + 2] * 1.5); 
+            }
+        }
+
+        function applyGreenTint(data) {
+            for (let i = 0; i < data.length; i += 4) {
+                data[i + 1] = Math.min(255, data[i + 1] * 1.5); 
+            }
+        }
+
+        function applyPosterize(data) {
+            const levels = 8;
+            const size = 255 / (levels - 1);
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = Math.floor(data[i] / size) * size;
+                data[i + 1] = Math.floor(data[i + 1] / size) * size;
+                data[i + 2] = Math.floor(data[i + 2] / size) * size;
+            }
+        }
+
+        function applyThreshold(data) {
+            const threshold = 128;
+            for (let i = 0; i < data.length; i += 4) {
+                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                const color = avg > threshold ? 255 : 0;
+                data[i] = data[i + 1] = data[i + 2] = color;
+            }
+        }
+
+        function applyColorBalanceWarm(data) {
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = Math.min(255, data[i] * 1.15);     
+                data[i + 2] = Math.max(0, data[i + 2] * 0.85); 
+            }
+        }
+
+        function applyColorBalanceCool(data) {
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = Math.max(0, data[i] * 0.85);     
+                data[i + 2] = Math.min(255, data[i + 2] * 1.15); 
+            }
+        }
+
+
+        // --- Main Application Logic ---
+
+        /**
+         * Continuously draws the video feed to the canvas and applies the selected filter.
+         */
+        function processFrame() {
+            if (videoElement.paused || videoElement.ended || !isCameraActive) {
+                return;
+            }
+
+            // 1. Draw the frame from the video onto the canvas
+            ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+
+            const filter = FILTERS[currentFilterKey];
+
+            // 2. Apply Canvas (Pixel) Filters if needed
+            if (filter.type === 'canvas') {
+                try {
+                    // Get the pixel data from the canvas
+                    let imageData = ctx.getImageData(0, 0, canvasElement.width, canvasElement.height);
+
+                    // Apply the custom filter function
+                    filter.func(imageData.data);
+
+                    // Put the modified data back onto the canvas
+                    ctx.putImageData(imageData, 0, 0);
+                } catch (e) {
+                    console.error("Canvas filter error:", e);
+                }
+            }
+
+            // 3. Request the next frame draw
+            requestAnimationFrame(processFrame);
+        }
+
+        /**
+         * Initializes and starts the camera stream.
+         */
+        async function startCamera() {
+            if (isCameraActive) return;
+
+            messageBox.classList.remove('hidden');
+            startCameraBtn.disabled = true;
+            captureBtn.disabled = true;
+            startCameraBtn.textContent = 'Starting...';
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'user' 
+                    }
+                });
+                videoElement.srcObject = stream;
+                isCameraActive = true;
+                
+                videoElement.onloadedmetadata = () => {
+                    // Set canvas dimensions to match the video stream dimensions
+                    canvasElement.width = videoElement.videoWidth;
+                    canvasElement.height = videoElement.videoHeight;
+                    
+                    messageBox.classList.add('hidden');
+                    startCameraBtn.textContent = 'Stop Camera';
+                    startCameraBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                    startCameraBtn.classList.add('bg-red-600', 'hover:bg-red-700');
+                    startCameraBtn.disabled = false;
+                    captureBtn.disabled = false; // Enable capture once stream is live
+                    processFrame(); // Start the filter loop
+                };
+
+            } catch (error) {
+                console.error("Could not access camera:", error);
+                const message = error.name === 'NotAllowedError' ? 
+                                "Camera access denied. Please allow it in your browser settings." :
+                                "Error: Could not find or access camera device.";
+                
+                messageBox.innerHTML = `<div class="text-xl font-bold">${message}</div>`;
+                startCameraBtn.textContent = 'Start Camera';
+                startCameraBtn.disabled = false;
+                startCameraBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                startCameraBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+            }
+        }
+
+        /**
+         * Stops the camera stream.
+         */
+        function stopCamera() {
+            if (!isCameraActive) return;
+            const stream = videoElement.srcObject;
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
+            isCameraActive = false;
+            startCameraBtn.textContent = 'Start Camera';
+            startCameraBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+            startCameraBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+            captureBtn.disabled = true; // Disable capture when stopping
+            messageBox.classList.remove('hidden');
+            messageBox.innerHTML = `<div class="text-lg font-semibold animate-pulse">Camera stopped. Click "Start Camera" to begin again.</div>`;
+        }
+
+        /**
+         * Captures the current canvas frame and triggers a download.
+         */
+        function captureSnapshot() {
+            if (!isCameraActive) {
+                console.warn("Camera is not active. Cannot capture snapshot.");
+                return;
+            }
+
+            // Get the data URL (PNG format) from the canvas
+            const dataURL = canvasElement.toDataURL('image/png');
+
+            // 1. Create a temporary anchor element
+            const a = document.createElement('a');
+            
+            // 2. Set the download filename using a timestamp
+            const now = new Date();
+            const timestamp = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}_${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+            const filterName = currentFilterKey.replace(/-/g, '_');
+            
+            a.download = `LiveFilter_${filterName}_${timestamp}.png`;
+            
+            // 3. Set the data URL as the link's target
+            a.href = dataURL;
+            
+            // 4. Append to body (required for Firefox) and trigger click
+            document.body.appendChild(a);
+            a.click();
+            
+            // 5. Clean up the temporary element
+            document.body.removeChild(a);
+
+            // Simple visual feedback (optional: button flash)
+            captureBtn.classList.add('ring-4', 'ring-yellow-500');
+            setTimeout(() => {
+                captureBtn.classList.remove('ring-4', 'ring-yellow-500');
+            }, 300);
+        }
+
+        /**
+         * Applies the selected filter, using either CSS or Canvas methods.
+         */
+        function applyFilter(key) {
+            const filter = FILTERS[key];
+            if (!filter) return;
+            
+            currentFilterKey = key;
+            filterDescription.textContent = filter.desc;
+
+            // 1. Reset all CSS filters
+            canvasElement.style.filter = 'none';
+
+            // 2. Apply CSS filter if type is 'css'
+            if (filter.type === 'css') {
+                canvasElement.style.filter = filter.value;
+            }
+        }
+
+        // --- Initialization ---
+        
+        // Populate the dropdown menu with filters
+        Object.keys(FILTERS).forEach(key => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = key.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            filterSelect.appendChild(option);
+        });
+
+        // Set initial message
+        messageBox.classList.remove('hidden');
+        
+        // Event Listeners
+        startCameraBtn.addEventListener('click', () => {
+            if (isCameraActive) {
+                stopCamera();
+            } else {
+                startCamera();
+            }
+        });
+
+        captureBtn.addEventListener('click', captureSnapshot); // New listener for capture
+
+        filterSelect.addEventListener('change', (e) => {
+            applyFilter(e.target.value);
+        });
+
+        // Apply initial filter
+        applyFilter(currentFilterKey);
+
+    </script>
+</body>
+</html>
+
