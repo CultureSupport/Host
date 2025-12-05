@@ -31,3 +31,18 @@ Repository is Setup For Text to Train our Models and Use the intervention design
 -----------------
 
 - We Use Exploits into Build also Language apps into performing Local Language TTS Training, Dialect Ai
+
+...................
+
+# Running Full Stack / Json
+
+
+- Queries Search
+- Information
+- Statistics
+- Information Status in Apps
+- Text Forms
+- Style Preparations
+- Link Sources
+- Canva Game Structures
+- Serverlet
