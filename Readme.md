@@ -26,4 +26,8 @@ Repository is Setup For Text to Train our Models and Use the intervention design
 
 - Enabling Ai Website Model to Generate Large Language Modelse and Transform Our Own Wanted Build Patterns By Build with internal Terminal
 
+-----------------
+-----------------
+-----------------
 
+- We Use Exploits into Build also Language apps into performing Local Language TTS Training, Dialect Ai
